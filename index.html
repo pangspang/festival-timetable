@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timetable</title><!-- title set dynamically from FESTIVAL.name -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- ── Festival data (edit data.js to change artists / stages / days) ── -->
+<script src="data.js"></script>
+
+<style>
+/* ─── TOKENS ─────────────────────────────────────────────────── */
+:root {
+  --bg:        #0c0c0e;
+  --surface:   #141416;
+  --surface2:  #1c1c1f;
+  --border:    #2a2a2e;
+  --border2:   #3a3a3f;
+  --accent:    #d4f500;
+  --liked:     #ff3d6b;
+  --text:      #efefef;
+  --text-2:    #999;
+  --text-3:    #555;
+
+  --header-h:   56px;
+  --time-w:     56px;
+  --stage-w:    220px;
+  --px-per-min: 2px;
+  --block-gap:  3px;
+  --row-top:    52px;
+}
+
+/* ─── RESET ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 15px;
+  min-height: 100vh;
+}
+a { text-decoration: none; color: inherit; }
+button { font: inherit; cursor: pointer; }
+
+/* ─── APP SHELL ───────────────────────────────────────────────── */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* ─── TOP BAR ─────────────────────────────────────────────────── */
+.topbar {
+  flex-shrink: 0;
+  height: var(--header-h);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 100;
+}
+.logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.logo span {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--text-3);
+  margin-left: 4px;
+}
+
+.daytabs { display: flex; gap: 4px; flex-shrink: 0; }
+.daytab {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 0 14px;
+  height: 34px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text-2);
+  transition: all .15s;
+  white-space: nowrap;
+}
+.daytab:hover  { border-color: var(--accent); color: var(--accent); }
+.daytab.active { background: var(--accent); border-color: var(--accent); color: #000; }
+.daytab .sub   { font-size: 9px; font-weight: 400; opacity: .65; margin-left: 3px; letter-spacing: 1px; }
+
+.topbar-right { margin-left: auto; flex-shrink: 0; }
+.sched-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 0 14px;
+  height: 34px;
+  background: transparent;
+  border: 1px solid var(--liked);
+  color: var(--liked);
+  transition: all .15s;
+}
+.sched-btn:hover { background: var(--liked); color: #fff; }
+.sched-btn .cnt {
+  background: var(--liked);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 20px;
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  line-height: 1;
+  transition: background .15s;
+}
+.sched-btn:hover .cnt { background: rgba(255,255,255,.3); }
+
+/* ─── TIMETABLE AREA ──────────────────────────────────────────── */
+.tt-area {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.tt-scroll {
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.tt-content {
+  display: flex;
+  flex-direction: column;
+  min-height: min-content;
+}
+
+/* ─── HEADER ROW (stage names) ────────────────────────────────── */
+.tt-header-row {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border2);
+}
+.tt-corner {
+  width: var(--time-w);
+  min-width: var(--time-w);
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+.tt-stage-head {
+  width: var(--stage-w);
+  min-width: var(--stage-w);
+  flex-shrink: 0;
+  height: var(--row-top);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-right: 1px solid var(--border);
+}
+.tt-stage-head:last-child { border-right: none; }
+.stage-pip {
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.stage-head-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* ─── BODY ROW ────────────────────────────────────────────────── */
+.tt-body-row {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+}
+
+/* ─── TIME GUTTER ─────────────────────────────────────────────── */
+.tt-times {
+  width: var(--time-w);
+  min-width: var(--time-w);
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  z-index: 40;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  position: relative;
+}
+.time-tick {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-right: 8px;
+  padding-top: 3px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: .5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Re-apply sticky after the relative above */
+.tt-times { position: sticky; left: 0; }
+
+/* ─── STAGE COLUMNS ───────────────────────────────────────────── */
+.tt-stage-col {
+  width: var(--stage-w);
+  min-width: var(--stage-w);
+  flex-shrink: 0;
+  position: relative;
+  border-right: 1px solid var(--border);
+}
+.tt-stage-col:last-child { border-right: none; }
+.hr-line {
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+.hr-line.half {
+  background: transparent;
+  border-top: 1px dashed var(--border);
+  opacity: .5;
+}
+
+/* ─── ARTIST BLOCK ────────────────────────────────────────────── */
+.ab {
+  position: absolute;
+  left: var(--block-gap);
+  right: var(--block-gap);
+  border-radius: 5px;
+  border: 1.5px solid transparent;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 32px;
+  transition: filter .12s, box-shadow .12s;
+}
+.ab:hover { filter: brightness(1.15); box-shadow: 0 3px 16px rgba(0,0,0,.55); z-index: 10; }
+.ab.liked { border-color: var(--liked) !important; box-shadow: 0 0 0 1.5px var(--liked); }
+
+.ab-heart {
+  flex-shrink: 0;
+  width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.18);
+  border-right: 1px solid rgba(0,0,0,.2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.ab-heart:active { background: rgba(0,0,0,.35); }
+.hico {
+  font-size: 16px;
+  color: rgba(0,0,0,.4);
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+}
+.ab.liked .hico { color: var(--liked); }
+
+.ab-info {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ab-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.2;
+  color: rgba(0,0,0,.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ab[data-tall="1"] .ab-name {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.ab-time {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: rgba(0,0,0,.6);
+  margin-top: 3px;
+  white-space: nowrap;
+}
+.ab.conflict::after {
+  content: '⚡';
+  position: absolute;
+  bottom: 4px; right: 5px;
+  font-size: 9px;
+  pointer-events: none;
+}
+
+/* ─── FOOTER HINT ─────────────────────────────────────────────── */
+.tt-hint {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text-3);
+  border-top: 1px solid var(--border);
+  letter-spacing: .3px;
+  background: var(--bg);
+}
+.tt-hint b { color: var(--liked); font-weight: 600; }
+
+/* ─── SIDE PANEL ──────────────────────────────────────────────── */
+.overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(4px);
+}
+.overlay.open { display: flex; justify-content: flex-end; }
+.panel {
+  width: 380px;
+  max-width: 100vw;
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  animation: panelIn .2s ease;
+  overflow: hidden;
+}
+@keyframes panelIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.panel-top {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  letter-spacing: 2px;
+  color: var(--liked);
+  flex: 1;
+}
+.panel-close {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--text-2);
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.panel-close:hover { border-color: var(--text); color: var(--text); }
+.panel-daytabs {
+  flex-shrink: 0;
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.panel-daytab {
+  flex: 1;
+  padding: 11px 6px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  color: var(--text-2);
+  border-bottom: 2px solid transparent;
+  transition: all .15s;
+  margin-bottom: -1px;
+}
+.panel-daytab.active { color: var(--liked); border-bottom-color: var(--liked); }
+.panel-note {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: center;
+  padding: 8px 18px 4px;
+}
+.panel-note em { color: var(--liked); font-style: normal; }
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 18px 24px;
+}
+.p-empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-3);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  letter-spacing: .8px;
+  line-height: 1.7;
+}
+.p-empty .ico { font-size: 40px; display: block; margin-bottom: 12px; opacity: .25; }
+.p-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.p-item:last-child { border-bottom: none; }
+.p-bar  { width: 4px; height: 40px; border-radius: 2px; flex-shrink: 0; }
+.p-info { flex: 1; min-width: 0; }
+.p-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.p-meta { font-size: 12px; color: var(--text-2); margin-top: 1px; }
+.p-time {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--accent);
+  text-align: right;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+.p-rm {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--liked);
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.p-rm:hover { background: var(--liked); color: #fff; border-color: var(--liked); }
+.p-overlap {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255,77,0,.1);
+  border: 1px solid rgba(255,77,0,.3);
+  color: #ff6b35;
+  font-size: 10px;
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: .6px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  margin-top: 3px;
+}
+
+/* ─── TOAST ───────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  padding: 8px 18px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  letter-spacing: 1px;
+  border-radius: 3px;
+  z-index: 999;
+  opacity: 0;
+  transition: opacity .2s, transform .2s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ─── SCROLLBAR ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ─── RESPONSIVE ──────────────────────────────────────────────── */
+@media (max-width: 500px) {
+  :root { --stage-w: 72vw; --time-w: 48px; --px-per-min: 1.8px; }
+  .logo span           { display: none; }
+  .daytab .sub         { display: none; }
+  .sched-btn .lbl      { display: none; }
+  .panel               { width: 100vw; }
+  .stage-head-name     { font-size: 14px; letter-spacing: 1.5px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a id="logoLink" href="#" target="_blank" class="logo">
+      <span id="logoName"></span> <span id="logoEdition"></span>
+    </a>
+    <div class="daytabs" id="dayTabs"></div>
+    <div class="topbar-right">
+      <button class="sched-btn" onclick="openPanel()">
+        ♥ <span class="lbl">Mijn Schema</span>
+        <span class="cnt" id="lcount">0</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="tt-area">
+    <div class="tt-scroll" id="ttScroll">
+      <div class="tt-content" id="ttContent"></div>
+    </div>
+  </div>
+
+  <div class="tt-hint">
+    Scroll ↕ door tijd · Swipe ↔ voor podia · Klik <b>♡</b> om te liken · Klik naam voor artiestenpagina
+  </div>
+
+</div>
+
+<!-- PANEL -->
+<div class="overlay" id="overlay" onclick="onOverlayClick(event)">
+  <div class="panel">
+    <div class="panel-top">
+      <div class="panel-title">♥ Mijn Schema</div>
+      <button class="panel-close" onclick="closePanel()">✕</button>
+    </div>
+    <div class="panel-daytabs" id="panelDayTabs"></div>
+    <div class="panel-note">Opgeslagen in jouw browser — <em>alleen zichtbaar voor jou</em></div>
+    <div class="panel-body" id="panelBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── HELPERS (read from data.js globals) ──────────────────────────────────
+function artistUrl(name) {
+  const slug = SLUGS[name];
+  return slug ? FESTIVAL.lineup_base_url + slug + '/' : null;
+}
+
+// ─── STATE ────────────────────────────────────────────────────────────────
+let activeDay = localStorage.getItem(FESTIVAL.day_key) || DAYS[0].id;
+let panelDay  = activeDay;
+let liked     = JSON.parse(localStorage.getItem(FESTIVAL.storage_key) || '{}');
+
+const saveLiked = () => localStorage.setItem(FESTIVAL.storage_key, JSON.stringify(liked));
+const isLiked   = (d, s, a) => !!liked[`${d}:${s}:${a}`];
+
+function toggleLike(day, stg, art, e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  const k = `${day}:${stg}:${art}`;
+  if (liked[k]) { delete liked[k]; showToast(`✕ ${art} verwijderd`); }
+  else          { liked[k] = true; showToast(`♥ ${art} toegevoegd!`); }
+  saveLiked();
+  updateCount();
+  refreshBlock(day, stg, art);
+  if (document.getElementById('overlay').classList.contains('open')) renderPanel();
+}
+
+function updateCount() {
+  document.getElementById('lcount').textContent = Object.keys(liked).length;
+}
+
+// ─── TIME HELPERS ─────────────────────────────────────────────────────────
+function t2m(t) {
+  const [h, m] = t.split(':').map(Number);
+  return (h < 6 ? h + 24 : h) * 60 + m;
+}
+function dayBounds(day) {
+  const all = [];
+  STAGES.forEach(s => (SCHEDULE[day][s.id] || []).forEach(a => {
+    all.push(t2m(a.s)); all.push(t2m(a.e));
+  }));
+  if (!all.length) return { s: 14*60, e: 25*60 };
+  return { s: Math.floor(Math.min(...all)/60)*60, e: Math.ceil(Math.max(...all)/60)*60 };
+}
+function ppm() {
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--px-per-min')) || 2;
+}
+function m2px(m) { return m * ppm(); }
+
+// ─── RENDER HEADER ────────────────────────────────────────────────────────
+function renderBranding() {
+  document.title = `${FESTIVAL.name} ${FESTIVAL.edition} — Timetable`;
+  document.getElementById('logoLink').href    = FESTIVAL.url;
+  document.getElementById('logoName').textContent    = FESTIVAL.name;
+  document.getElementById('logoEdition').textContent = FESTIVAL.edition;
+}
+
+function renderTabs() {
+  document.getElementById('dayTabs').innerHTML = DAYS.map(d => `
+    <button class="daytab ${d.id === activeDay ? 'active' : ''}" onclick="switchDay('${d.id}')">
+      ${d.short}<span class="sub">${d.date}</span>
+    </button>`).join('');
+}
+
+// ─── RENDER TIMETABLE ─────────────────────────────────────────────────────
+function renderTimetable() {
+  const PPM    = ppm();
+  const { s: bStart, e: bEnd } = dayBounds(activeDay);
+  const totalPx = m2px(bEnd - bStart);
+
+  // Only show stages that have acts today
+  const activeStages = STAGES.filter(s => (SCHEDULE[activeDay][s.id] || []).length > 0);
+
+  const content = document.getElementById('ttContent');
+  content.innerHTML = '';
+
+  // ── Stage header row ──
+  const headerRow = document.createElement('div');
+  headerRow.className = 'tt-header-row';
+
+  const corner = document.createElement('div');
+  corner.className = 'tt-corner';
+  headerRow.appendChild(corner);
+
+  activeStages.forEach(stage => {
+    const h = document.createElement('div');
+    h.className = 'tt-stage-head';
+    h.innerHTML = `<div class="stage-pip" style="background:${stage.color}"></div>
+                   <div class="stage-head-name">${stage.name}</div>`;
+    headerRow.appendChild(h);
+  });
+  content.appendChild(headerRow);
+
+  // ── Body row ──
+  const bodyRow = document.createElement('div');
+  bodyRow.className = 'tt-body-row';
+
+  // Time gutter
+  const timesEl = document.createElement('div');
+  timesEl.className = 'tt-times';
+  timesEl.style.height = totalPx + 'px';
+
+  for (let m = bStart; m <= bEnd; m += 60) {
+    const h = Math.floor((m % (24*60)) / 60);
+    const tick = document.createElement('div');
+    tick.className = 'time-tick';
+    tick.style.top = m2px(m - bStart) + 'px';
+    tick.textContent = String(h).padStart(2, '0') + ':00';
+    timesEl.appendChild(tick);
+  }
+  bodyRow.appendChild(timesEl);
+
+  // Liked acts for conflict detection
+  const dayLiked = [];
+  activeStages.forEach(s => (SCHEDULE[activeDay][s.id] || []).forEach(a => {
+    if (isLiked(activeDay, s.id, a.a)) dayLiked.push({ ...a, sid: s.id });
+  }));
+  function hasConflict(act, sid) {
+    const as = t2m(act.s), ae = t2m(act.e);
+    return dayLiked.some(b => b.a !== act.a && b.sid !== sid && as < t2m(b.e) && ae > t2m(b.s));
+  }
+
+  // Stage columns
+  activeStages.forEach(stage => {
+    const col = document.createElement('div');
+    col.className = 'tt-stage-col';
+    col.id = `col_${stage.id}`;
+    col.style.height = totalPx + 'px';
+
+    // Hour + half-hour lines
+    for (let m = bStart; m <= bEnd; m += 60) {
+      const line = document.createElement('div');
+      line.className = 'hr-line';
+      line.style.top = m2px(m - bStart) + 'px';
+      col.appendChild(line);
+      if (m < bEnd) {
+        const half = document.createElement('div');
+        half.className = 'hr-line half';
+        half.style.top = m2px(m - bStart + 30) + 'px';
+        col.appendChild(half);
+      }
+    }
+
+    // Artist blocks
+    (SCHEDULE[activeDay][stage.id] || []).forEach(act => {
+      const as = t2m(act.s), ae = t2m(act.e);
+      const topPx    = m2px(as - bStart);
+      const heightPx = Math.max(m2px(ae - as) - 4, 32);
+      const lk   = isLiked(activeDay, stage.id, act.a);
+      const cf   = lk && hasConflict(act, stage.id);
+      const tall = heightPx >= 54 ? '1' : '0';
+
+      const blk = document.createElement('div');
+      blk.className  = 'ab' + (lk ? ' liked' : '') + (cf ? ' conflict' : '');
+      blk.id         = blkId(activeDay, stage.id, act.a);
+      blk.dataset.tall = tall;
+      blk.style.top    = topPx + 'px';
+      blk.style.height = heightPx + 'px';
+      blk.style.background = bgCol(stage.color, lk);
+
+      // Heart strip
+      const hz = document.createElement('div');
+      hz.className = 'ab-heart';
+      hz.innerHTML = `<span class="hico">${lk ? '♥' : '♡'}</span>`;
+      hz.addEventListener('click',    e => toggleLike(activeDay, stage.id, act.a, e));
+      hz.addEventListener('touchend', e => { e.preventDefault(); toggleLike(activeDay, stage.id, act.a, e); });
+      blk.appendChild(hz);
+
+      // Name + time (link to lineup page if slug exists)
+      const url  = artistUrl(act.a);
+      const info = document.createElement(url ? 'a' : 'div');
+      info.className = 'ab-info';
+      if (url) { info.href = url; info.target = '_blank'; info.rel = 'noopener'; }
+      info.addEventListener('click', e => e.stopPropagation());
+      info.innerHTML = `<div class="ab-name">${act.a}</div>
+                        <div class="ab-time">${act.s}–${act.e}</div>`;
+      blk.appendChild(info);
+
+      col.appendChild(blk);
+    });
+
+    bodyRow.appendChild(col);
+  });
+
+  content.appendChild(bodyRow);
+}
+
+function blkId(day, stg, art) {
+  return `b_${day}_${stg}_${art.replace(/\W/g, '_')}`;
+}
+function bgCol(hex, lk) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return lk
+    ? `rgb(${Math.min(255,r+72)},${Math.min(255,g+72)},${Math.min(255,b+72)})`
+    : `rgba(${r},${g},${b},.85)`;
+}
+
+function refreshBlock(day, stg, art) {
+  if (day !== activeDay) return;
+  const blk = document.getElementById(blkId(day, stg, art));
+  if (!blk) { renderTimetable(); return; }
+  const stage = STAGES.find(s => s.id === stg);
+  const lk = isLiked(day, stg, art);
+  blk.className = 'ab' + (lk ? ' liked' : '');
+  blk.style.background = bgCol(stage.color, lk);
+  const h = blk.querySelector('.hico');
+  if (h) h.textContent = lk ? '♥' : '♡';
+}
+
+function switchDay(id) {
+  activeDay = id;
+  localStorage.setItem(FESTIVAL.day_key, id);
+  renderTabs();
+  renderTimetable();
+  document.getElementById('ttScroll').scrollTop  = 0;
+  document.getElementById('ttScroll').scrollLeft = 0;
+}
+
+// ─── PANEL ────────────────────────────────────────────────────────────────
+function openPanel() {
+  panelDay = activeDay;
+  renderPanelDayTabs();
+  renderPanel();
+  document.getElementById('overlay').classList.add('open');
+}
+function closePanel() {
+  document.getElementById('overlay').classList.remove('open');
+}
+function onOverlayClick(e) {
+  if (e.target === document.getElementById('overlay')) closePanel();
+}
+
+function renderPanelDayTabs() {
+  document.getElementById('panelDayTabs').innerHTML = DAYS.map(d => `
+    <button class="panel-daytab ${d.id === panelDay ? 'active' : ''}" onclick="switchPanelDay('${d.id}')">
+      ${d.label}
+    </button>`).join('');
+}
+function switchPanelDay(id) { panelDay = id; renderPanelDayTabs(); renderPanel(); }
+
+function renderPanel() {
+  const body = document.getElementById('panelBody');
+  const acts = [];
+  STAGES.forEach(s => (SCHEDULE[panelDay][s.id] || []).forEach(a => {
+    if (isLiked(panelDay, s.id, a.a)) acts.push({ ...a, stage: s });
+  }));
+  acts.sort((a, b) => t2m(a.s) - t2m(b.s));
+
+  if (!acts.length) {
+    const lbl = DAYS.find(d => d.id === panelDay).label;
+    body.innerHTML = `<div class="p-empty">
+      <span class="ico">♡</span>
+      Geen artiesten geliked voor ${lbl}.<br>Klik een ♡ in de timetable.
+    </div>`;
+    return;
+  }
+
+  const ov = (a, b) => t2m(a.s) < t2m(b.e) && t2m(a.e) > t2m(b.s);
+  body.innerHTML = acts.map((act, i) => {
+    const cf     = acts.filter((_, j) => i !== j && ov(act, acts[j]));
+    const cfHtml = cf.length
+      ? `<div class="p-overlap">⚡ overlap: ${cf.map(c => c.a).join(', ')}</div>` : '';
+    const sa = act.a.replace(/'/g, "\\'");
+    return `<div class="p-item">
+      <div class="p-bar" style="background:${act.stage.color}"></div>
+      <div class="p-info">
+        <div class="p-name">${act.a}</div>
+        <div class="p-meta">${act.stage.name}</div>
+        ${cfHtml}
+      </div>
+      <div class="p-time">${act.s}<br>${act.e}</div>
+      <button class="p-rm" onclick="toggleLike('${panelDay}','${act.stage.id}','${sa}',event)">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────
+let _tt;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────
+function init() {
+  renderBranding();
+  renderTabs();
+  renderTimetable();
+  updateCount();
+  let rt;
+  window.addEventListener('resize', () => {
+    clearTimeout(rt);
+    rt = setTimeout(renderTimetable, 200);
+  });
+}
+init();
+</script>
+</body>
+</html>
