@@ -170,7 +170,7 @@ const SLUGS = {
   'Youth Code':                 'youth-code',
   'Ray Fuego':                  'ray-fuego',
   'Jawat!':                     'jawat',
-  'Kleine Crack & Slagter':     'kleine-crack-and-slagter',
+  'Kleine Crack & Slagter':     'kleine-crack-en-slagter',
   'Gierboys':                   'gierboys',
   'Kaboutertje Putlucht':       'kaboutertje-putlucht',
 };
