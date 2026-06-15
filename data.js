@@ -121,7 +121,7 @@ const SLUGS = {
   'Deathbyromy':                'deathbyromy',
   'Code: Pandorum Live':        'code-pandorum',
   'TDC Inc':                    'tdc-inc',
-  'Parrish Smith Live':         'parrish-smith',
+  'Parrish Smith Live':         'parrish-smith-live-',
   'Papa Roach':                 'papa-roach',
   'Rain City Drive':            'rain-city-drive',
   'Catch Your Breath':          'catch-your-breath',
