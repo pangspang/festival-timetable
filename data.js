@@ -70,7 +70,7 @@ const SLUGS = {
   'TSS':                        'tss',
   'Aurorawave':                 'aurorawave',
   'De Rooie Jager':             'de-rooie-jager',
-  'NØFX':                       'nofx',
+  'NØFX':                       'neufx',
   'Dynamo Heavy Bingo':         'dynamo-heavy-bingo',
   'Emo Night Mainland':         'emo-night-mainland',
   'The Offspring':              'the-offspring',
