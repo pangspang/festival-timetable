@@ -101,7 +101,7 @@ const SLUGS = {
   'The Baboon Show':            'the-baboon-show',
   'Jaya The Cat':               'jaya-the-cat',
   'Bad Nerves':                 'bad-nerves',
-  'Paceshifters Play Nirvana':  'paceshifters',
+  'Paceshifters Play Nirvana':  'paceshifters-play-nirvana',
   'Ilænder':                    'ilaender',
   'The Dwarves':                'dwarves',
   'Politie Warnsveld':          'politie-warnsveld',
